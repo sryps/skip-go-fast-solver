@@ -1,0 +1,7 @@
+__debug_bin*
+build/
+conf/debug.yml
+keys.json.plaintext
+solver.db
+vendor
+.idea

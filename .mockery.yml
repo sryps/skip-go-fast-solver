@@ -1,0 +1,46 @@
+with-expecter: true
+filename: "mock_{{.InterfaceName | snakecase}}.go"
+dir: "mocks/{{.InterfaceDirRelative}}"
+packages:
+  github.com/skip-mev/go-fast-solver/shared/evmrpc:
+    interfaces:
+      EVMRPCClientManager:
+      EVMChainRPC:
+  github.com/skip-mev/go-fast-solver/shared/svmrpc:
+    interfaces:
+      SVMRPCClientManager:
+      SolanaRPCClient:
+  github.com/skip-mev/go-fast-solver/shared/http:
+    interfaces:
+      Client:
+  github.com/skip-mev/go-fast-solver/shared/tmrpc:
+    interfaces:
+      TendermintRPCClientManager:
+      TendermintRPCQuerier:
+  github.com/skip-mev/go-fast-solver/shared/signing:
+    interfaces:
+      Signer:
+  github.com/skip-mev/go-fast-solver/shared/clients/coingecko:
+    interfaces:
+      PriceClient:
+  github.com/skip-mev/go-fast-solver/shared/clients/utils:
+    interfaces:
+      HTTPClient:
+      RateLimiter:
+  github.com/skip-mev/go-fast-solver/shared/clients/skipgo:
+    interfaces:
+      SkipGoClient:
+  github.com/skip-mev/go-fast-solver/shared/config:
+    interfaces:
+      ConfigReader:
+  github.com/skip-mev/go-fast-solver/shared/signing/evm:
+    interfaces:
+      Builder:
+  github.com/skip-mev/go-fast-solver/fundrebalancer:
+    interfaces:
+      Database:
+
+  # External Packages
+  github.com/ethereum/go-ethereum/accounts/abi/bind:
+    interfaces:
+      ContractBackend:
