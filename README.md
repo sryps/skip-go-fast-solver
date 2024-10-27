@@ -1,4 +1,4 @@
-# Skip Go Fast Transfer Solver
+# Skip Go Fast Solver
 
 ![Solver Flow](./img/solver_flow.png)
 _(note: running the skip go fast transfer solver binary deploys both the solver and hyperlane relayer components needed)_
