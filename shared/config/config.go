@@ -10,8 +10,6 @@ import (
 	"time"
 
 	bech322 "github.com/cosmos/cosmos-sdk/types/bech32"
-	"github.com/mr-tron/base58"
-
 	"gopkg.in/yaml.v3"
 )
 
@@ -21,7 +19,6 @@ type ChainType string
 const (
 	ChainType_COSMOS ChainType = "cosmos"
 	ChainType_EVM    ChainType = "evm"
-	ChainType_SVM    ChainType = "svm"
 )
 
 type ChainEnvironment string
@@ -72,7 +69,6 @@ type ChainConfig struct {
 	Environment                     ChainEnvironment `yaml:"environment"`
 	Cosmos                          *CosmosConfig    `yaml:"cosmos,omitempty"`
 	EVM                             *EVMConfig       `yaml:"evm,omitempty"`
-	SVM                             *SVMConfig       `yaml:"svm,omitempty"`
 	GasTokenSymbol                  string           `yaml:"gas_token_symbol"`
 	GasTokenCoingeckoID             *string          `yaml:"gas_token_coingecko_id"`
 	GasTokenDecimals                uint8            `yaml:"gas_token_decimals"`
@@ -136,15 +132,6 @@ type EVMConfig struct {
 	SolverAddress               string                 `yaml:"solver_address"`
 	USDCDenom                   string                 `yaml:"usdc_denom"`
 	Contracts                   ContractsConfig        `yaml:"contracts"`
-}
-
-type SVMConfig struct {
-	RPC                         string                 `yaml:"rpc"`
-	WS                          string                 `yaml:"ws"`
-	SignerGasBalance            SignerGasBalanceConfig `yaml:"signer_gas_balance"`
-	FastTransferContractAddress string                 `yaml:"fast_transfer_contract_address"`
-	PriorityFee                 uint64                 `yaml:"priority_fee"`
-	SubmitRPCs                  []string               `yaml:"submit_rpcs"`
 }
 
 type ContractsConfig struct {
@@ -259,12 +246,6 @@ func (r configReader) GetSolverAddress(domain uint32, environment ChainEnvironme
 			return "", nil, err
 		}
 		return chain.SolverAddress, addressBytes, nil
-	case ChainType_SVM:
-		addressBytes, err := base58.Decode(chain.SolverAddress)
-		if err != nil {
-			return "", nil, err
-		}
-		return chain.SolverAddress, addressBytes, nil
 	default:
 		return "", nil, fmt.Errorf("unknown chain type")
 	}
@@ -290,8 +271,6 @@ func (r configReader) GetRPCEndpoint(chainID string) (string, error) {
 		return chain.Cosmos.RPC, nil
 	case ChainType_EVM:
 		return chain.EVM.RPC, nil
-	case ChainType_SVM:
-		return chain.SVM.RPC, nil
 	}
 
 	return "", fmt.Errorf("unknown chain type")
@@ -378,8 +357,6 @@ func (r configReader) GetUSDCDenom(chainID string) (string, error) {
 		return chainConfig.Cosmos.USDCDenom, nil
 	case ChainType_EVM:
 		return chainConfig.EVM.Contracts.USDCERC20Address, nil
-	case ChainType_SVM:
-		return "", fmt.Errorf("no usdc denom available for svm chains")
 	default:
 		return "", fmt.Errorf("no usdc denom available for chain type %s", chainConfig.Type)
 	}
