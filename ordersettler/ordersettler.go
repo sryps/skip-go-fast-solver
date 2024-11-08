@@ -11,6 +11,7 @@ import (
 
 	dbtypes "github.com/skip-mev/go-fast-solver/db"
 	"github.com/skip-mev/go-fast-solver/ordersettler/types"
+	"github.com/skip-mev/go-fast-solver/shared/contracts/fast_transfer_gateway"
 	"github.com/skip-mev/go-fast-solver/shared/metrics"
 	"golang.org/x/sync/errgroup"
 
@@ -137,6 +138,16 @@ func (r *OrderSettler) findNewSettlements(ctx context.Context) error {
 				return fmt.Errorf("checking if order %s exists on chainID %s: %w", fill.OrderID, sourceChainID, err)
 			}
 			if !exists {
+				continue
+			}
+
+			// ensure order is not already filled (an order is only marked as
+			// filled on the source chain once it is settled)
+			status, err := sourceBridgeClient.OrderStatus(ctx, sourceGatewayAddress, fill.OrderID)
+			if err != nil {
+				return fmt.Errorf("getting order %s status on chainID %s: %w", fill.OrderID, sourceChainID, err)
+			}
+			if status != fast_transfer_gateway.OrderStatusUnfilled {
 				continue
 			}
 
