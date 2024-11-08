@@ -298,7 +298,7 @@ func (r *OrderSettler) SettleBatches(ctx context.Context, batches []types.Settle
 	return g.Wait()
 }
 
-// SettleBatch initates a settlement on chain for a SettlementBatch.
+// SettleBatch initiates a settlement on chain for a SettlementBatch.
 func (r *OrderSettler) SettleBatch(ctx context.Context, batch types.SettlementBatch) error {
 	destinationBridgeClient, err := r.clientManager.GetClient(ctx, batch.DestinationChainID())
 	if err != nil {
@@ -309,11 +309,18 @@ func (r *OrderSettler) SettleBatch(ctx context.Context, batch types.SettlementBa
 		return fmt.Errorf("initiating batch settlement on chain %s: %w", batch.DestinationChainID(), err)
 	}
 
+	if rawTx == "" {
+		lmt.Logger(ctx).Error("batch settlement rawTx is empty",
+			zap.String("batchDestinationChainId", batch.DestinationChainID()), zap.Any("batchOrderIDs", batch.OrderIDs()))
+		return fmt.Errorf("empty batch settlement transaction")
+	}
+
 	if err = recordBatchSettlementSubmittedMetric(ctx, batch); err != nil {
 		return fmt.Errorf("recording batch settlement submitted metrics: %w", err)
 	}
 
 	err = r.db.InTx(ctx, func(ctx context.Context, q db.Querier) error {
+		// First update all settlements with the initiate settlement tx
 		for _, settlement := range batch {
 			settlementTx := db.SetInitiateSettlementTxParams{
 				SourceChainID:                     settlement.SourceChainID,
@@ -323,10 +330,6 @@ func (r *OrderSettler) SettleBatch(ctx context.Context, batch types.SettlementBa
 			}
 			if _, err = q.SetInitiateSettlementTx(ctx, settlementTx); err != nil {
 				return fmt.Errorf("setting initiate settlement tx for settlement from source chain %s with order id %s: %w", settlement.SourceChainID, settlement.OrderID, err)
-			}
-
-			if rawTx == "" {
-				continue
 			}
 
 			submittedTx := db.InsertSubmittedTxParams{
@@ -433,5 +436,6 @@ func (r *OrderSettler) verifyOrderSettlement(ctx context.Context, settlement db.
 		}
 		return nil
 	}
+
 	return fmt.Errorf("settlement is not complete")
 }
