@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	dbtypes "github.com/skip-mev/go-fast-solver/db"
@@ -85,6 +86,36 @@ func (r *RelayerRunner) Run(ctx context.Context) error {
 
 				destinationTxHash, destinationChainID, err := r.relayHandler.Relay(ctx, transfer.SourceChainID, transfer.MessageSentTx)
 				if err != nil {
+					// Unrecoverable error
+					if strings.Contains("execution reverted", err.Error()) {
+						lmt.Logger(ctx).Warn(
+							"abandoning hyperlane transfer",
+							zap.Int64("transferId", transfer.ID),
+							zap.String("txHash", transfer.MessageSentTx),
+							zap.Error(err),
+						)
+
+						if _, err := r.db.SetMessageStatus(ctx, db.SetMessageStatusParams{
+							TransferStatus:     dbtypes.TransferStatusAbandoned,
+							SourceChainID:      transfer.SourceChainID,
+							DestinationChainID: transfer.DestinationChainID,
+							MessageID:          transfer.MessageID,
+						}); err != nil {
+							lmt.Logger(ctx).Error(
+								"error updating invalid transfer status",
+								zap.Int64("transferId", transfer.ID),
+								zap.String("txHash", transfer.MessageSentTx),
+								zap.Error(err),
+							)
+						}
+						continue
+					}
+
+					// warning already logged in relayer
+					if errors.Is(err, ErrNotEnoughSignaturesFound) {
+						continue
+					}
+
 					lmt.Logger(ctx).Error(
 						"error relaying pending hyperlane transfer",
 						zap.Error(err),

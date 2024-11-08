@@ -33,7 +33,8 @@ func NewRelayer(hyperlaneClient Client, storageLocationOverrides map[string]stri
 }
 
 var (
-	ErrMessageAlreadyDelivered = fmt.Errorf("message has already been delivered")
+	ErrMessageAlreadyDelivered  = fmt.Errorf("message has already been delivered")
+	ErrNotEnoughSignaturesFound = errors.New("number of signatures found in multisig signed checkpoint is below expected threshold")
 )
 
 func (r *relayer) Relay(ctx context.Context, originChainID string, initiateTxHash string) (destinationTxHash string, destinationChainID string, err error) {
@@ -162,7 +163,7 @@ func (r *relayer) checkpointAtIndex(
 		signedCheckpoint, err := fetcher.Checkpoint(ctx, index)
 		if errors.Is(err, ErrCheckpointDoesNotExist) {
 			// if the validator for this fetcher has not signed the
-			// chekcpoint, ignore it
+			// checkpoint, ignore it
 			continue
 		}
 		if err != nil {
@@ -215,7 +216,10 @@ func (r *relayer) checkpointAtIndex(
 		}
 	}
 	if len(multiSigCheckpoint.Signatures) < int(threshold) {
-		return types.MultiSigSignedCheckpoint{}, fmt.Errorf("expected atleast %d signatures in multisig signed checkpoint, but got %d", threshold, len(multiSigCheckpoint.Signatures))
+		lmt.Logger(ctx).Warn("failed to find expected number of signatures in multisig signed checkpoint",
+			zap.Uint8("threshold", threshold), zap.Int("num_signatures_found", len(multiSigCheckpoint.Signatures)))
+
+		return types.MultiSigSignedCheckpoint{}, ErrNotEnoughSignaturesFound
 	}
 	if strings.TrimPrefix(multiSigCheckpoint.Checkpoint.MessageID, "0x") != strings.TrimPrefix(messageID, "0x") {
 		return types.MultiSigSignedCheckpoint{}, fmt.Errorf("mismatch message id in checkpoint and dipsatch message. dispatch has %s and checkpoint has %s", messageID, multiSigCheckpoint.Checkpoint.MessageID)
