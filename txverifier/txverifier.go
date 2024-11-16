@@ -4,9 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"time"
+
 	dbtypes "github.com/skip-mev/go-fast-solver/db"
 	"github.com/skip-mev/go-fast-solver/shared/clientmanager"
-	"time"
 
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"

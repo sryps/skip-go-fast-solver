@@ -4,12 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"math"
 	"math/big"
 	"strconv"
 	"time"
 
 	dbtypes "github.com/skip-mev/go-fast-solver/db"
-	"github.com/skip-mev/go-fast-solver/orderfulfiller"
 	"github.com/skip-mev/go-fast-solver/shared/bridges/cctp"
 	"github.com/skip-mev/go-fast-solver/shared/clientmanager"
 	"github.com/skip-mev/go-fast-solver/shared/metrics"
@@ -20,17 +20,34 @@ import (
 	"go.uber.org/zap"
 )
 
-type orderFulfillmentHandler struct {
-	db            orderfulfiller.Database
-	clientManager *clientmanager.ClientManager
+type Relayer interface {
+	SubmitTxToRelay(ctx context.Context, txHash string, sourceChainID string, maxTxFeeUUSDC *big.Int) error
 }
 
-func NewOrderFulfillmentHandler(ctx context.Context, db orderfulfiller.Database, clientManager *clientmanager.ClientManager) (*orderFulfillmentHandler, error) {
+type Database interface {
+	GetAllOrdersWithOrderStatus(ctx context.Context, orderStatus string) ([]db.Order, error)
 
+	SetFillTx(ctx context.Context, arg db.SetFillTxParams) (db.Order, error)
+	SetOrderStatus(ctx context.Context, arg db.SetOrderStatusParams) (db.Order, error)
+
+	InsertSubmittedTx(ctx context.Context, arg db.InsertSubmittedTxParams) (db.SubmittedTx, error)
+	GetSubmittedTxsByOrderIdAndType(ctx context.Context, arg db.GetSubmittedTxsByOrderIdAndTypeParams) ([]db.SubmittedTx, error)
+
+	SetRefundTx(ctx context.Context, arg db.SetRefundTxParams) (db.Order, error)
+}
+
+type orderFulfillmentHandler struct {
+	db            Database
+	clientManager *clientmanager.ClientManager
+	relayer       Relayer
+}
+
+func NewOrderFulfillmentHandler(db Database, clientManager *clientmanager.ClientManager, relayer Relayer) *orderFulfillmentHandler {
 	return &orderFulfillmentHandler{
 		db:            db,
 		clientManager: clientManager,
-	}, nil
+		relayer:       relayer,
+	}
 }
 
 // TODO: feels like this functions is doing too many different things and the
@@ -176,7 +193,7 @@ func (r *orderFulfillmentHandler) FillOrder(
 	txHash, rawTx, _, err := destinationChainBridgeClient.FillOrder(ctx, order, destinationChainGatewayContractAddress)
 	metrics.FromContext(ctx).AddTransactionSubmitted(err == nil, order.SourceChainID, order.DestinationChainID, sourceChainConfig.ChainName, destinationChainConfig.ChainName, string(sourceChainConfig.Environment))
 	if err != nil {
-		return "", fmt.Errorf("filling order on destination chain at address %s: %w", destinationChainBridgeClient, err)
+		return "", fmt.Errorf("filling order on destination chain at address %s: %w", destinationChainGatewayContractAddress, err)
 	}
 
 	if _, err := r.db.InsertSubmittedTx(ctx, db.InsertSubmittedTxParams{
@@ -203,6 +220,7 @@ func (r *orderFulfillmentHandler) checkOrderAssetBalance(ctx context.Context, de
 		return false, err
 	}
 	if balance.Cmp(new(big.Int).SetUint64(transferAmount)) < 0 {
+		lmt.Logger(ctx).Warn("insufficient balance", zap.String("balance", balance.String()), zap.Uint64("transferAmount", transferAmount))
 		return false, nil
 	}
 	return true, nil
@@ -332,37 +350,48 @@ func (r *orderFulfillmentHandler) checkBlockConfirmations(ctx context.Context, s
 	}
 }
 
-func (r *orderFulfillmentHandler) InitiateTimeout(ctx context.Context, order db.Order) error {
+func (r *orderFulfillmentHandler) InitiateTimeout(ctx context.Context, order db.Order) (string, error) {
 	destinationChainBridgeClient, err := r.clientManager.GetClient(ctx, order.DestinationChainID)
 	if err != nil {
-		return fmt.Errorf("failed to get client: %w", err)
+		return "", fmt.Errorf("failed to get client: %w", err)
 	}
 
 	sourceChainConfig, err := config.GetConfigReader(ctx).GetChainConfig(order.SourceChainID)
 	if err != nil {
-		return err
+		return "", err
 	}
 	destinationChainConfig, err := config.GetConfigReader(ctx).GetChainConfig(order.DestinationChainID)
 	if err != nil {
-		return err
+		return "", err
 	}
 	destinationChainGatewayContractAddress, err := config.GetConfigReader(ctx).GetGatewayContractAddress(order.DestinationChainID)
 	if err != nil {
-		return err
+		return "", err
 	}
-	if submittedTxs, err := r.db.GetSubmittedTxsByOrderIdAndType(ctx, db.GetSubmittedTxsByOrderIdAndTypeParams{
+
+	submittedTxs, err := r.db.GetSubmittedTxsByOrderIdAndType(ctx, db.GetSubmittedTxsByOrderIdAndTypeParams{
 		OrderID: sql.NullInt64{Int64: order.ID, Valid: true},
 		TxType:  dbtypes.TxTypeInitiateTimeout,
-	}); err != nil {
-		return fmt.Errorf("failed to get submitted txs: %w", err)
-	} else if len(submittedTxs) > 0 {
-		return nil
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to get submitted txs: %w", err)
+	}
+	if len(submittedTxs) > 1 {
+		return "", fmt.Errorf("got more %d submitted tx's for order %s with type %s, expected only 1", len(submittedTxs), order.OrderStatusMessage.String, dbtypes.TxTypeInitiateTimeout)
+	}
+	if len(submittedTxs) == 1 {
+		// the timeout for this order has already been submitted, return the tx
+		// hash
+		return submittedTxs[0].TxHash, nil
 	}
 
 	txHash, rawTx, _, err := destinationChainBridgeClient.InitiateTimeout(ctx, order, destinationChainGatewayContractAddress)
 	metrics.FromContext(ctx).AddTransactionSubmitted(err == nil, order.SourceChainID, order.DestinationChainID, sourceChainConfig.ChainName, destinationChainConfig.ChainName, string(sourceChainConfig.Environment))
 	if err != nil {
-		return fmt.Errorf("initiating timeout: %w", err)
+		return "", fmt.Errorf("initiating timeout: %w", err)
+	}
+	if txHash == "" {
+		return "", fmt.Errorf("empty tx hash after submitting order for timeout to address %s", destinationChainGatewayContractAddress)
 	}
 
 	if _, err := r.db.InsertSubmittedTx(ctx, db.InsertSubmittedTxParams{
@@ -373,7 +402,40 @@ func (r *orderFulfillmentHandler) InitiateTimeout(ctx context.Context, order db.
 		TxType:   dbtypes.TxTypeInitiateTimeout,
 		TxStatus: dbtypes.TxStatusPending,
 	}); err != nil {
-		return fmt.Errorf("failed to insert raw tx %w", err)
+		return "", fmt.Errorf("failed to insert raw tx %w", err)
 	}
-	return nil
+
+	lmt.Logger(ctx).Info(
+		"successfully initiated timeout",
+		zap.String("orderID", order.OrderID),
+		zap.String("sourceChainID", order.SourceChainID),
+		zap.String("destinationChainID", order.DestinationChainID),
+	)
+
+	return txHash, nil
+}
+
+func (r *orderFulfillmentHandler) SubmitTimeoutForRelay(ctx context.Context, order db.Order, txHash string) error {
+	// the source chain for the relay is the chain that the timeout was
+	// initiated on, which is the orders destination chain
+	initiateTimeoutChain := order.DestinationChainID
+
+	var (
+		maxRetries = 5
+		baseDelay  = 2 * time.Second
+		err        error
+	)
+
+	for i := 0; i < maxRetries; i++ {
+		if err = r.relayer.SubmitTxToRelay(ctx, txHash, initiateTimeoutChain, nil); err == nil {
+			return nil
+		}
+		delay := math.Pow(2, float64(i))
+		time.Sleep(time.Duration(delay) * baseDelay)
+	}
+
+	return fmt.Errorf(
+		"submitting settlement tx hash %s to be relayed from chain %s to chain %s: %w",
+		txHash, initiateTimeoutChain, order.SourceChainID, err,
+	)
 }

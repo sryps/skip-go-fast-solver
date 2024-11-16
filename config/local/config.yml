@@ -2,6 +2,16 @@
 # Do NOT leave any angle brackets in the final configuration.
 metrics:
   prometheus_address: "0.0.0.0:8001"
+coingecko:
+  base_url: "https://pro-api.coingecko.com/api/v3/"
+  # API key is optional here. If you do not have an API key, you can remove the
+  # api_key option all together. If you have a coin gecko API key, we will use
+  # it to get more up to date gas costs. If you specify an API key, you should
+  # reduce the requests per minute and cache refresh interval according to your
+  # keys limits. The values are currently set for no API key use.
+  api_key: <api_key>
+  requests_per_minute: 2
+  cache_refresh_interval: "15m"
 order_filler:
   worker_count: 10
 # The fund_rebalancer config is optional. If you do not want the solver to
@@ -28,12 +38,14 @@ chains:
     gas_token_decimals: 18
     fast_transfer_contract_address: <use_address_from_readme>
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
-    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
     min_fill_size: <min_fill_size> # e.g. 5000000
     max_fill_size: <max_fill_size> # e.g. 10000000000
     max_rebalancing_gas_threshold: <max_rebalancing_gas_threshold> # e.g. 1000000
-    min_fee_bps: <min_fee_bps> # e.g. 100
     solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
+    #### SEE shared/config/config.go for guidance on how to set the below three values per chain ####
+    min_fee_bps: <min_fee_bps> # e.g. 100
+    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
+    min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
     evm:
       rpc: <ethereum_rpc_server_url> # e.g. "https://eth.llamarpc.com"
       rpc_basic_auth_var: <server_password>
@@ -54,12 +66,14 @@ chains:
     gas_token_decimals: 18
     fast_transfer_contract_address: <use_address_from_readme>
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
-    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
     min_fill_size: <min_fill_size> # e.g. 5000000
     max_fill_size: <max_fill_size> # e.g. 10000000000
     max_rebalancing_gas_threshold: <max_rebalancing_gas_threshold> # e.g. 1000000
-    min_fee_bps: <min_fee_bps> # e.g. 100
     solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
+    #### SEE shared/config/config.go for guidance on how to set the below three values per chain ####
+    min_fee_bps: <min_fee_bps> # e.g. 100
+    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
+    min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
     evm:
       rpc: <ethereum_testnet_rpc_server_url> # e.g. "https://sepolia.infura.io/v3/YOUR-API-KEY"
       rpc_basic_auth_var: <server_password>
@@ -80,12 +94,14 @@ chains:
     gas_token_decimals: 18
     fast_transfer_contract_address: <use_address_from_readme>
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
-    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
     min_fill_size: <min_fill_size> # e.g. 5000000
     max_fill_size: <max_fill_size> # e.g. 10000000000
     max_rebalancing_gas_threshold: <max_rebalancing_gas_threshold> # e.g. 1000000
-    min_fee_bps: <min_fee_bps> # e.g. 100
     solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
+    #### SEE shared/config/config.go for guidance on how to set the below three values per chain ####
+    min_fee_bps: <min_fee_bps> # e.g. 100
+    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
+    min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
     evm:
       rpc: <avalanche_rpc_server_url> # e.g. "https://api.avax.network/ext/bc/C/rpc"
       rpc_basic_auth_var: <server_password>
@@ -106,12 +122,14 @@ chains:
     gas_token_decimals: 18
     fast_transfer_contract_address: <use_address_from_readme>
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
-    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
     min_fill_size: <min_fill_size> # e.g. 5000000
     max_fill_size: <max_fill_size> # e.g. 10000000000
     max_rebalancing_gas_threshold: <max_rebalancing_gas_threshold> # e.g. 1000000
-    min_fee_bps: <min_fee_bps> # e.g. 100
     solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
+    #### SEE shared/config/config.go for guidance on how to set the below three values per chain ####
+    min_fee_bps: <min_fee_bps> # e.g. 100
+    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
+    min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
     evm:
       rpc: <optimism_rpc_server_url> # e.g. "https://mainnet.optimism.io"
       rpc_basic_auth_var: <server_password>
@@ -135,11 +153,13 @@ chains:
     solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
     hyperlane_domain: "42161"
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
-    batch_uusdc_settle_up_threshold: 5000000
     min_fill_size: <min_fill_size> # e.g. 5000000
     max_fill_size: <max_fill_size> # e.g. 10000000000
     max_rebalancing_gas_threshold: <max_rebalancing_gas_threshold> # e.g. 1000000
+    #### SEE shared/config/config.go for guidance on how to set the below three values per chain ####
     min_fee_bps: <min_fee_bps> # e.g. 100
+    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
+    min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
     evm:
       rpc: <arbitrum_rpc_server_url> # e.g. "https://arb1.arbitrum.io/rpc"
       rpc_basic_auth_var: <server_password>
@@ -161,6 +181,10 @@ chains:
     environment: "testnet"
     gas_token_symbol: "ETH"
     gas_token_decimals: 18
+    #### SEE shared/config/config.go for guidance on how to set the below three values per chain ####
+    min_fee_bps: <min_fee_bps> # e.g. 100
+    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
+    min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
     evm:
       rpc: <arbitrum_rpc_server_url>
       rpc_basic_auth_var: <server_password>
@@ -180,12 +204,14 @@ chains:
     solver_address: <solver_address>
     hyperlane_domain: "875"
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
-    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
     min_fill_size: <min_fill_size> # e.g. 5000000
     max_fill_size: <max_fill_size> # e.g. 10000000000
     max_rebalancing_gas_threshold: <max_rebalancing_gas_threshold> # e.g. 1000000
-    min_fee_bps: <min_fee_bps> # e.g. 100
     usdc_denom: "ibc/498A0751C798A0D9A389AA3691123DADA57DAA4FE165D5C75894505B876BA6E4"
+    #### SEE shared/config/config.go for guidance on how to set the below three values per chain ####
+    min_fee_bps: <min_fee_bps> # e.g. 100
+    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
+    min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
     cosmos:
       address_prefix: "osmo"
       rpc: <osmosis_rpc_server_url> # e.g. "https://rpc.osmosis.zone"
@@ -212,12 +238,14 @@ chains:
     gas_token_decimals: 18
     fast_transfer_contract_address: <use_address_from_readme>
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
-    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
     min_fill_size: <min_fill_size> # e.g. 5000000
     max_fill_size: <max_fill_size> # e.g. 10000000000
     max_rebalancing_gas_threshold: <max_rebalancing_gas_threshold> # e.g. 1000000
-    min_fee_bps: <min_fee_bps> # e.g. 100
     solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
+    #### SEE shared/config/config.go for guidance on how to set the below three values per chain ####
+    min_fee_bps: <min_fee_bps> # e.g. 100
+    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
+    min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
     evm:
       rpc: <base_mainnet_rpc_server_url> # e.g. "https://mainnet.base.org"
       rpc_basic_auth_var: <server_password>
@@ -238,12 +266,14 @@ chains:
     gas_token_decimals: 18
     fast_transfer_contract_address: <use_address_from_readme>
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
-    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
     min_fill_size: <min_fill_size> # e.g. 5000000
     max_fill_size: <max_fill_size> # e.g. 10000000000
     max_rebalancing_gas_threshold: <max_rebalancing_gas_threshold> # e.g. 1000000
-    min_fee_bps: <min_fee_bps> # e.g. 100
     solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
+    #### SEE shared/config/config.go for guidance on how to set the below three values per chain ####
+    min_fee_bps: <min_fee_bps> # e.g. 100
+    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
+    min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
     evm:
       rpc: <polygon_mainnet_rpc_server_url> # e.g. "https://polygon-rpc.com"
       rpc_basic_auth_var: <server_password>

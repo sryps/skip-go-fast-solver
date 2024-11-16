@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"math/big"
 
 	"strings"
 
@@ -17,7 +18,7 @@ import (
 )
 
 type Relayer interface {
-	Relay(ctx context.Context, originChainID string, initiateTxHash string) (destinationTxHash string, destinationChainID string, err error)
+	Relay(ctx context.Context, originChainID string, initiateTxHash string, maxTxFeeUUSDC *big.Int) (destinationTxHash string, destinationChainID string, err error)
 }
 
 type relayer struct {
@@ -33,11 +34,12 @@ func NewRelayer(hyperlaneClient Client, storageLocationOverrides map[string]stri
 }
 
 var (
+	ErrRelayTooExpensive        = fmt.Errorf("relay is too expensive")
 	ErrMessageAlreadyDelivered  = fmt.Errorf("message has already been delivered")
 	ErrNotEnoughSignaturesFound = errors.New("number of signatures found in multisig signed checkpoint is below expected threshold")
 )
 
-func (r *relayer) Relay(ctx context.Context, originChainID string, initiateTxHash string) (destinationTxHash string, destinationChainID string, err error) {
+func (r *relayer) Relay(ctx context.Context, originChainID string, initiateTxHash string, maxTxFeeUUSDC *big.Int) (destinationTxHash string, destinationChainID string, err error) {
 	originChainConfig, err := config.GetConfigReader(ctx).GetChainConfig(originChainID)
 	if err != nil {
 		return "", "", fmt.Errorf("getting chain config for chainID %s: %w", originChainID, err)
@@ -130,6 +132,19 @@ func (r *relayer) Relay(ctx context.Context, originChainID string, initiateTxHas
 	if err != nil {
 		return "", "", fmt.Errorf("hex decoding dispatch message to bytes: %w", err)
 	}
+
+	// if the user specified a max tx fee, ensure that the tx fee to relay will
+	// be less than this amount
+	if maxTxFeeUUSDC != nil {
+		isFeeLessThanMax, err := r.isRelayFeeLessThanMax(ctx, dispatch.DestinationDomain, message, metadata, maxTxFeeUUSDC)
+		if err != nil {
+			return "", "", fmt.Errorf("checking if relay to domain %s is profitable: %w", dispatch.DestinationDomain, err)
+		}
+		if !isFeeLessThanMax {
+			return "", "", ErrRelayTooExpensive
+		}
+	}
+
 	hash, err := r.hyperlane.Process(ctx, dispatch.DestinationDomain, message, metadata)
 	if err != nil {
 		return "", "", fmt.Errorf("processing message on domain %s: %w", dispatch.DestinationDomain, err)
@@ -232,4 +247,43 @@ func (r *relayer) checkpointAtIndex(
 	}
 
 	return multiSigCheckpoint, nil
+}
+
+// isRelayFeeLessThanMax simulates a relay of a message and checks that the fee
+// to relay the message is less than the users specified max relay fee in uusdc
+func (r *relayer) isRelayFeeLessThanMax(
+	ctx context.Context,
+	domain string,
+	message []byte,
+	metadata []byte,
+	maxTxFeeUUSDC *big.Int,
+) (bool, error) {
+	txFeeUUSDC, err := r.hyperlane.QuoteProcessUUSDC(ctx, domain, message, metadata)
+	if err != nil {
+		return false, fmt.Errorf("quoting process call in uusdc: %w", err)
+	}
+
+	// dont ever expect for a tx fee to be negative or 0, log a warning here
+	if txFeeUUSDC.Cmp(big.NewInt(0)) <= 0 {
+		lmt.Logger(ctx).Warn("tx fee uusdc was <= 0", zap.String("txFeeUUSDC", txFeeUUSDC.String()))
+		return false, nil
+	}
+
+	isFeeLessThanMax := txFeeUUSDC.Cmp(maxTxFeeUUSDC) <= 0
+
+	if isFeeLessThanMax {
+		lmt.Logger(ctx).Info(
+			"tx fee to relay message is less than max allowed fee",
+			zap.String("estimatedTxFeeUUSDC", txFeeUUSDC.String()),
+			zap.String("maxTxFeeUUSDC", maxTxFeeUUSDC.String()),
+		)
+	} else {
+		lmt.Logger(ctx).Info(
+			"tx fee to relay message is more than max allowed fee",
+			zap.String("estimatedTxFeeUUSDC", txFeeUUSDC.String()),
+			zap.String("maxTxFeeUUSDC", maxTxFeeUUSDC.String()),
+		)
+	}
+
+	return isFeeLessThanMax, nil
 }
