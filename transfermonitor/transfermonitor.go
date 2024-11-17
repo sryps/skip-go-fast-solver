@@ -20,6 +20,7 @@ import (
 	"github.com/skip-mev/go-fast-solver/shared/config"
 	"github.com/skip-mev/go-fast-solver/shared/contracts/fast_transfer_gateway"
 	"github.com/skip-mev/go-fast-solver/shared/lmt"
+	"github.com/skip-mev/go-fast-solver/shared/metrics"
 	"github.com/skip-mev/go-fast-solver/shared/tmrpc"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
@@ -81,6 +82,7 @@ func (t *TransferMonitor) Start(ctx context.Context) error {
 				var startBlockHeight uint64
 				transferMonitorMetadata, err := t.db.GetTransferMonitorMetadata(ctx, chainID)
 				if err != nil && !strings.Contains(err.Error(), "no rows in result set") {
+
 					lmt.Logger(ctx).Error("Error getting transfer monitor metadata", zap.Error(err))
 					continue
 				} else if err == nil {
@@ -144,10 +146,12 @@ func (t *TransferMonitor) Start(ctx context.Context) error {
 
 						_, err := t.db.InsertOrder(ctx, toInsert)
 						if err != nil && !strings.Contains(err.Error(), "sql: no rows in result set") {
+
 							lmt.Logger(ctx).Error("Error inserting order", zap.Error(err))
 							errorInsertingOrder = true
 							break
 						}
+						metrics.FromContext(ctx).IncFillOrderStatusChange(order.ChainID, order.DestinationChainID, dbtypes.OrderStatusPending)
 					}
 				}
 				lmt.Logger(ctx).Debug("num orders found while processing blocks", zap.Int("numOrders", len(orders)))
@@ -160,6 +164,7 @@ func (t *TransferMonitor) Start(ctx context.Context) error {
 					HeightLastSeen: int64(endBlockHeight),
 				})
 				if err != nil {
+
 					lmt.Logger(ctx).Error("Error inserting transfer monitor metadata", zap.Error(err))
 					continue
 				}

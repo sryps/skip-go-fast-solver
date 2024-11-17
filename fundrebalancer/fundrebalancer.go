@@ -12,6 +12,9 @@ import (
 	evmtxsubmission "github.com/skip-mev/go-fast-solver/shared/txexecutor/evm"
 
 	"github.com/ethereum/go-ethereum/common"
+	dbtypes "github.com/skip-mev/go-fast-solver/db"
+	"github.com/skip-mev/go-fast-solver/shared/metrics"
+
 	"github.com/skip-mev/go-fast-solver/db/gen/db"
 	"github.com/skip-mev/go-fast-solver/shared/clients/skipgo"
 	"github.com/skip-mev/go-fast-solver/shared/config"
@@ -288,6 +291,7 @@ func (r *FundRebalancer) MoveFundsToChain(
 		if err != nil {
 			return nil, nil, fmt.Errorf("signing and submitting transaction: %w", err)
 		}
+		metrics.FromContext(ctx).IncFundsRebalanceTransferStatusChange(rebalanceFromChainID, rebalanceToChain, dbtypes.RebalanceTransactionStatusPending)
 
 		totalUSDCcMoved = new(big.Int).Add(totalUSDCcMoved, usdcToRebalance)
 		hashes = append(hashes, txHash)
