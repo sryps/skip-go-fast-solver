@@ -27,7 +27,7 @@ import (
 )
 
 type TxPriceOracle interface {
-	TxFeeUUSDC(ctx context.Context, tx *ethtypes.Transaction, gasTokenCoingeckoID string) (*big.Int, error)
+	TxFeeUUSDC(ctx context.Context, tx *ethtypes.Transaction) (*big.Int, error)
 }
 
 type HyperlaneClient struct {
@@ -289,7 +289,6 @@ func (c *HyperlaneClient) QuoteProcessUUSDC(ctx context.Context, domain string, 
 	if err != nil {
 		return nil, fmt.Errorf("packing mailbox process call: %w", err)
 	}
-
 	to := c.mailboxAddress.String()
 	value := "0"
 
@@ -308,12 +307,7 @@ func (c *HyperlaneClient) QuoteProcessUUSDC(ctx context.Context, domain string, 
 		return nil, fmt.Errorf("building process tx to simulate: %w", err)
 	}
 
-	chainConfig, err := config.GetConfigReader(ctx).GetChainConfig(chainID)
-	if err != nil {
-		return nil, fmt.Errorf("getting destination chain %s config: %w", chainID, err)
-	}
-
-	txFeeUUSDC, err := c.txPriceOracle.TxFeeUUSDC(ctx, tx, chainConfig.GasTokenCoingeckoID)
+	txFeeUUSDC, err := c.txPriceOracle.TxFeeUUSDC(ctx, tx)
 	if err != nil {
 		return nil, fmt.Errorf("getting tx fee in uusdc from gas oracle: %w", err)
 	}
